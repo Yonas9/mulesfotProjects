@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="7d4601fb-4148-4697-81b1-eac8a3c899dc" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="6d53360f-547f-4917-a403-d08c67efaee9" >
+		<db:my-sql-connection host="127.0.0.1" port="3306" user="root" password="root" />
+	</db:config>
+	<jms:config name="JMS_Config" doc:name="JMS Config" doc:id="16a34aa9-6a69-48e4-9a75-abdcccd34f2c" >
+		<jms:active-mq-connection username="admin" password="admin" >
+			<jms:factory-configuration brokerUrl="tcp://localhost:61616" />
+		</jms:active-mq-connection>
+	</jms:config>
+	<flow name="database-jmsFlow" doc:id="a0a7c300-b6a5-429c-b39f-16eaa51fef42" >
+		<http:listener doc:name="Listener" doc:id="373a5f65-4d7c-41ea-a8ad-e8b4f8fbdeaf" config-ref="HTTP_Listener_config" path="pathdb"/>
+		<db:select doc:name="craftshopping" doc:id="b9a7ea53-e2f4-4dd9-b990-9cac92e6ca9a" config-ref="Database_Config">
+			<db:sql ><![CDATA[select * from craftcustomer.products]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="6e4abe07-7ad8-4580-851f-72f70acc67d6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<jms:publish doc:name="Publish" doc:id="131078d0-16cf-4f76-a146-6f50ae8c5542" config-ref="JMS_Config" destination="product"/>
+		<set-payload value="Published..." doc:name="Set Payload" doc:id="77b48a30-4048-4340-a5d2-605138051da9" />
+	</flow>
+	<flow name="database-jmsFlow1" doc:id="0ad6d1fc-27eb-4569-a50c-7affa461ff03" >
+		<http:listener doc:name="Listener" doc:id="b7f5758d-9076-466e-bf50-c9460afa9ffb" config-ref="HTTP_Listener_config" path="checking"/>
+		<logger level="INFO" doc:name="Logger" doc:id="cd2b6221-3337-4730-a20b-402421967a47" message="Entery"/>
+		<first-successful doc:name="First Successful" doc:id="7fd88a40-32c3-4910-a96d-523709c49956" >
+			<route >
+				<db:select doc:name="Select" doc:id="4e76d39a-c2ec-4709-9773-f949146935f8" config-ref="Database_Config">
+					<db:sql ><![CDATA[sel from craftcustomer.products]]></db:sql>
+				</db:select>
+			</route>
+			<route >
+				<jms:consume doc:name="Consume" doc:id="37a440dc-e5e2-4e80-bafd-bd87b98dbd9d" config-ref="JMS_Config" destination="product"/>
+			</route>
+		</first-successful>
+		<ee:transform doc:name="Transform Message" doc:id="df29fd98-0b46-47f3-b52e-9f1229e20a11" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<jms:publish doc:name="Publish" doc:id="ff66c337-09ed-4c27-9fd8-f6873d745949" config-ref="JMS_Config" destination="new-product"/>
+		<set-payload value="new product published...." doc:name="Set Payload" doc:id="4747adc0-06bf-4001-b942-3a5ebfd38716" />
+	</flow>
+</mule>
